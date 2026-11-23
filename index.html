@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bons points">
+<meta name="theme-color" content="#5B4BDB">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon.png">
+<title>Bons points</title>
+<style>
+:root{--ink:#2A2352;--grape:#5B4BDB;--mint:#5FD3A8;--sun:#FFC94D;--pink:#FF7AA8;--bg:#F6F3FF;--mut:#7A74A0}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.4 ui-rounded,"SF Pro Rounded",system-ui,sans-serif;padding:env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom))}
+main{max-width:520px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 0}
+h1{font-size:30px;margin:0}h2{font-size:21px;margin:22px 0 8px}
+button{font:inherit;border:0;border-radius:18px;padding:14px 18px;background:var(--grape);color:#fff;font-weight:700;min-height:48px}
+button.ghost{background:#fff;color:var(--ink);box-shadow:0 0 0 2px #E2DCFA inset}
+button.sun{background:var(--sun);color:var(--ink)}button.pink{background:var(--pink)}button.big{width:100%;font-size:20px;padding:18px}
+.card{background:#fff;border-radius:26px;padding:18px;margin:12px 0;display:block;width:100%;text-align:left;color:var(--ink);box-shadow:0 6px 0 #E6E0FB}
+.kid{display:flex;gap:14px;align-items:center}.av{font-size:46px;line-height:1}
+.kid b{font-size:22px}.pts{margin-left:auto;font-size:34px;font-weight:800;color:var(--grape)}
+.bar{height:16px;background:#ECE8FB;border-radius:9px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--sun));border-radius:9px;transition:width .4s}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row button{flex:1;min-width:64px}
+.chip{background:#fff;color:var(--ink);box-shadow:0 0 0 2px #E2DCFA inset;padding:9px 14px;min-height:40px;border-radius:20px;font-weight:600}.chip.on{background:var(--mint);box-shadow:none}
+textarea,input,select{font:inherit;width:100%;padding:12px;border-radius:14px;border:2px solid #E2DCFA;background:#fff;color:var(--ink)}
+label{display:block;margin:12px 0 4px;font-weight:700}label.in{display:flex;gap:10px;align-items:center}label.in input{width:auto}
+.big-n{font-size:72px;font-weight:800;color:var(--grape);text-align:center;line-height:1}.c{text-align:center;color:var(--mut)}
+.gal{display:grid;grid-template-columns:1fr 1fr;gap:10px}.gal img,.full{width:100%;border-radius:18px;display:block;background:#fff}
+.h{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #E6E0FB;font-size:15px}.h s{text-decoration:none;font-weight:800}
+.pos{color:#1E9E75}.neg{color:#D6336C}small{color:var(--mut)}
+.pre{background:#fff;border-radius:18px;padding:14px;border-left:8px solid var(--sun)}
+#t{position:fixed;left:16px;right:16px;bottom:calc(20px + env(safe-area-inset-bottom));background:var(--ink);color:#fff;padding:14px;border-radius:16px;text-align:center;display:none}
+.spin{font-size:64px;text-align:center;animation:r 1.4s linear infinite}@keyframes r{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.spin{animation:none}.bar i{transition:none}}
+</style></head><body><main id="app"></main><div id="t"></div>
+<script>
+const K="bonspoints-v1",$=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const def=()=>({kids:[{id:1,name:"Pablo",e:"🦊",pts:0},{id:2,name:"Eléa",e:"🦋",pts:0}],hist:[],gal:[],pinSet:false,
+ set:{thr:10,pin:"0000",neg:false,rule:"seuil",reasons:["Aide à la maison","Rangement","Geste gentil","Devoirs faits"],ep:"",tok:""}});
+let S;try{S=JSON.parse(localStorage.getItem(K))||def()}catch(e){S=def()}
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){toast("Stockage plein : faites une sauvegarde puis supprimez des images.")}};
+let v={n:"home"},parent=false;
+const kid=id=>S.kids.find(k=>k.id==id);
+const toast=m=>{const t=$("#t");t.textContent=m;t.style.display="block";clearTimeout(toast.i);toast.i=setTimeout(()=>t.style.display="none",3200)};
+const fd=d=>new Date(d).toLocaleDateString("fr-FR",{day:"numeric",month:"short"});
+const bar=k=>`<div class="bar"><i style="width:${Math.min(100,k.pts/S.set.thr*100)}%"></i></div>`;
+const OPT={Animaux:["un chat","un dragon gentil","un hibou","un dauphin","un lapin","une tortue"],Lieux:["un château sous-marin","une forêt de bonbons","une île dans les nuages","une cabane en haut d’un arbre"],Couleurs:["arc-en-ciel","bleu et or","rose et vert","violet étoilé"],Ambiance:["joyeuse","magique","drôle","tranquille"]};
+const BAD=/sang|arme|tuer|mort|sexe|nu\b|gore|fusil|couteau|cadavre|horreur/i;
+function ensure(cb){if(parent)return cb();const p=prompt("Code parent");if(p===S.set.pin){parent=true;cb()}else if(p!==null)toast("Code incorrect.")}
+function adjust(n){const k=kid(v.id);
+ if(n<0&&!S.set.neg&&k.pts+n<0)return toast("Solde insuffisant : le solde ne peut pas être négatif.");
+ if((Math.abs(n)>=5||n<=-3)&&!confirm((n>0?"Ajouter ":"Retirer ")+Math.abs(n)+" points à "+k.name+" ?"))return;
+ k.pts+=n;S.hist.unshift({id:Date.now(),kid:k.id,d:new Date().toISOString(),n,why:v.why||""});v.why="";save();render()}
+function render(){let h="";
+ if(v.n=="home"){
+  h=`<header><h1>Bons points</h1><button class="ghost" data-a="lock">${parent?"🔓 Parent":"🔒 Parent"}</button></header>`;
+  if(parent&&!S.pinSet)h+=`<div class="card">Le code parent est encore 0000. Changez-le dans les réglages.</div>`;
+  S.kids.forEach(k=>h+=`<button class="card" data-a="open" data-id="${k.id}"><div class="kid"><span class="av">${esc(k.e)}</span><b>${esc(k.name)}</b><span class="pts">${k.pts}</span></div>${bar(k)}<small>${k.pts>=S.set.thr?"Récompense prête !":"Encore "+(S.set.thr-k.pts)+" pour la récompense"}</small></button>`);
+  h+=`<div class="row"><button class="ghost" data-a="gal">🖼️ Galerie</button>${parent?`<button class="ghost" data-a="set">⚙️ Réglages</button>`:""}</div>`;
+ }else if(v.n=="kid"){const k=kid(v.id),can=k.pts>=S.set.thr;
+  h=`<header><button class="ghost" data-a="home">←</button><b>${esc(k.e)} ${esc(k.name)}</b><span></span></header><div class="card"><div class="big-n">${k.pts}</div><div class="c">${k.pts==1?"bon point":"bons points"}</div>${bar(k)}<p class="c">${can?"Bravo, ta récompense est prête !":k.pts==0?"Les premiers points arrivent vite.":"Encore "+(S.set.thr-k.pts)+" avant ta récompense."}</p></div>`;
+  if(can)h+=`<button class="big sun" data-a="create">✨ Créer mon image</button>`;
+  if(parent){h+=`<h2>Ajouter ou retirer</h2><div class="row">`+S.set.reasons.map(r=>`<button class="chip ${v.why==r?"on":""}" data-a="why" data-r="${esc(r)}">${esc(r)}</button>`).join("")+`</div><div class="row" style="margin-top:10px">`+[-5,-1,1,2,5].map(n=>`<button class="${n<0?"pink":""}" data-a="adj" data-n="${n}">${n>0?"+":"−"}${Math.abs(n)}</button>`).join("")+`</div>`}
+  else h+=`<p class="c">Pour changer les points, demande à un parent.</p>`;
+  const hs=S.hist.filter(x=>x.kid==k.id).slice(0,30);
+  h+=`<h2>Historique</h2>`+(hs.map(x=>`<div class="h"><span>${fd(x.d)} · ${esc(x.why||"—")}</span><s class="${x.n>0?"pos":"neg"}">${x.n>0?"+":"−"}${Math.abs(x.n)}</s></div>`).join("")||`<p class="c">Rien pour l’instant.</p>`);
+  const gs=S.gal.filter(g=>g.kid==k.id);if(gs.length)h+=`<h2>Mes images</h2><div class="gal">`+gs.map(g=>`<img data-a="img" data-id="${g.id}" src="${g.img}" alt="">`).join("")+`</div>`;
+ }else if(v.n=="create"){const k=kid(v.id);
+  h=`<header><button class="ghost" data-a="open" data-id="${k.id}">←</button><b>Ton image chimérique</b><span></span></header>`;
+  if(v.busy)h+=`<div class="spin">🪄</div><p class="c">L’image se prépare, ça prend environ une minute.</p>`;
+  else if(v.res)h+=`<img class="full" src="${v.res}" alt=""><p class="c">Voilà ton image, ${esc(k.name)} !</p><button class="big" data-a="open" data-id="${k.id}">Terminer</button>`;
+  else if(v.step==2)h+=`<p>Voici ce qui sera envoyé :</p><div class="pre">${esc(buildPrompt())}</div><p><small>Un parent doit valider. Les points ne sont retirés que si l’image est créée.</small></p><div class="row"><button class="ghost" data-a="edit">Modifier</button><button class="sun" data-a="launch">Valider (parent)</button></div>`;
+  else{h+=`<label>Ton idée</label><textarea id="idea" rows="3" placeholder="un chat avec des ailes de papillon dans un château sous-marin">${esc(v.idea)}</textarea>`;
+   for(const g in OPT)h+=`<small>${g}</small><div class="row" style="margin:4px 0 8px">`+OPT[g].map(t=>`<button class="chip" data-a="add" data-t="${esc(t)}">${esc(t)}</button>`).join("")+`</div>`;
+   h+=`<button class="big" data-a="preview">Voir le texte envoyé</button>`}
+ }else if(v.n=="gal"){h=`<header><button class="ghost" data-a="home">←</button><b>Galerie</b><span></span></header>`+(S.gal.length?`<div class="gal">`+S.gal.map(g=>`<div><img data-a="img" data-id="${g.id}" src="${g.img}" alt=""><small>${esc(g.name)} · ${fd(g.d)}</small></div>`).join("")+`</div>`:`<p class="c">Aucune image pour l’instant. Elles apparaissent ici après chaque récompense.</p>`)
+ }else if(v.n=="img"){const g=S.gal.find(x=>x.id==v.id);h=`<header><button class="ghost" data-a="gal">←</button><b>${esc(g.name)}</b><span></span></header><img class="full" src="${g.img}" alt=""><p><small>${esc(g.prompt)}</small></p><button class="big" data-a="share">Enregistrer ou partager (parent)</button>`
+ }else if(v.n=="set"){const s=S.set;
+  h=`<header><button class="ghost" data-a="home">←</button><b>Réglages</b><span></span></header>
+  <label>Points pour une récompense</label><input id="s-thr" type="number" min="1" value="${s.thr}">
+  <label>À l’échange</label><select id="s-rule"><option value="seuil" ${s.rule=="seuil"?"selected":""}>Retirer le seuil (le reste est gardé)</option><option value="tout" ${s.rule=="tout"?"selected":""}>Remettre à zéro</option></select>
+  <label class="in"><input id="s-neg" type="checkbox" ${s.neg?"checked":""}>Autoriser un solde négatif</label>
+  <label>Motifs (séparés par des virgules)</label><input id="s-rs" value="${esc(s.reasons.join(", "))}">
+  <label>Code parent</label><input id="s-pin" inputmode="numeric" value="${esc(s.pin)}">
+  <h2>Enfants</h2>`+S.kids.map(k=>`<div class="row" style="margin-bottom:8px"><input class="kn" data-id="${k.id}" value="${esc(k.name)}" style="flex:3"><input class="ke" data-id="${k.id}" value="${esc(k.e)}" style="flex:1"><button class="ghost" data-a="delkid" data-id="${k.id}" style="flex:0">🗑️</button></div>`).join("")+`<button class="ghost" data-a="addkid">+ Ajouter un enfant</button>
+  <h2>Génération d’images</h2><small>Adresse de votre serveur intermédiaire. Vide : images de démonstration.</small>
+  <label>Adresse du serveur</label><input id="s-ep" value="${esc(s.ep)}" placeholder="https://…workers.dev"><label>Jeton familial</label><input id="s-tok" value="${esc(s.tok)}">
+  <h2>Sauvegarde</h2><div class="row"><button class="ghost" data-a="export">Exporter</button><button class="ghost" data-a="import">Importer</button></div><input id="imp" type="file" accept=".json" hidden>
+  <button class="big" style="margin-top:20px" data-a="setsave">Enregistrer</button>`}
+ $("#app").innerHTML=h;
+ const im=$("#imp");if(im)im.onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const j=JSON.parse(t);if(!j.kids||!j.set)throw 0;if(confirm("Remplacer toutes les données ?")){S=j;save();v={n:"home"};render()}}catch(x){toast("Fichier non valide.")}})};
+}
+function buildPrompt(){return `Illustration pour enfants, style livre jeunesse, douce et colorée : ${v.idea.trim()}. Créature chimérique mêlant des éléments inattendus. Sans texte, sans contenu effrayant ni violent.`}
+function shrink(src){return new Promise(r=>{const i=new Image();i.onload=()=>{const m=640/Math.max(i.width,i.height,640),c=document.createElement("canvas");c.width=i.width*m;c.height=i.height*m;c.getContext("2d").drawImage(i,0,0,c.width,c.height);r(c.toDataURL("image/jpeg",.82))};i.onerror=()=>r(src);i.src=src})}
+const demo=()=>{const A=["🦊","🐱","🦉","🐬","🐰","🦋","🐉","🐢","🦄","🐙"],a=A[Math.random()*10|0],b=A[Math.random()*10|0];
+ return "data:image/svg+xml,"+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g"><stop offset="0" stop-color="#FFC94D"/><stop offset="1" stop-color="#FF7AA8"/></linearGradient><clipPath id="l"><rect width="200" height="400"/></clipPath><clipPath id="r"><rect x="200" width="200" height="400"/></clipPath></defs><rect width="400" height="400" fill="url(#g)"/><text x="200" y="270" font-size="260" text-anchor="middle" clip-path="url(#l)">${a}</text><text x="200" y="270" font-size="260" text-anchor="middle" clip-path="url(#r)">${b}</text><text x="200" y="380" font-size="20" text-anchor="middle" fill="#2A2352">image de démonstration</text></svg>`)}
+async function run(){const k=kid(v.id),p=buildPrompt();v.busy=true;render();
+ try{let img;if(!S.set.ep)img=demo();else{
+   const r=await fetch(S.set.ep,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+S.set.tok},body:JSON.stringify({prompt:p})});
+   if(!r.ok)throw 0;let j=(await r.json()).image;if(!j)throw 0;
+   if(/^https?:/.test(j)){const b=await (await fetch(j)).blob();j=await new Promise(o=>{const f=new FileReader();f.onload=()=>o(f.result);f.readAsDataURL(b)})}
+   img=await shrink(j)}
+  k.pts-=S.set.rule=="tout"?k.pts:S.set.thr;
+  S.hist.unshift({id:Date.now(),kid:k.id,d:new Date().toISOString(),n:-(S.set.thr),why:"Récompense : image"});
+  S.gal.unshift({id:Date.now()+1,kid:k.id,name:k.name,d:new Date().toISOString(),prompt:v.idea.trim(),img});save();v.res=img;
+ }catch(e){toast("La création a échoué. Aucun point n’a été retiré, vous pouvez réessayer.");v.step=2}
+ v.busy=false;render()}
+async function share(){const g=S.gal.find(x=>x.id==v.id);try{const b=await (await fetch(g.img)).blob(),f=new File([b],"image-"+g.name+".jpg",{type:b.type});
+ if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f]});else{const a=document.createElement("a");a.href=g.img;a.download=f.name;a.click()}}catch(e){}}
+function setsave(){const s=S.set,n=+$("#s-thr").value;if(!(n>=1))return toast("Le seuil doit être au moins 1.");
+ s.thr=n;s.rule=$("#s-rule").value;s.neg=$("#s-neg").checked;s.reasons=$("#s-rs").value.split(",").map(x=>x.trim()).filter(Boolean);
+ const p=$("#s-pin").value.trim();if(!/^\d{4,8}$/.test(p))return toast("Le code doit avoir 4 à 8 chiffres.");if(p!="0000")S.pinSet=true;s.pin=p;
+ s.ep=$("#s-ep").value.trim();s.tok=$("#s-tok").value.trim();
+ document.querySelectorAll(".kn").forEach(i=>kid(i.dataset.id).name=i.value.trim()||"Enfant");document.querySelectorAll(".ke").forEach(i=>kid(i.dataset.id).e=i.value.trim()||"🙂");
+ save();v={n:"home"};render();toast("Réglages enregistrés.")}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-a]");if(!b)return;const d=b.dataset;
+ switch(d.a){
+ case"lock":parent?(parent=false,render()):ensure(render);break;
+ case"home":v={n:"home"};render();break;
+ case"open":v={n:"kid",id:+d.id};render();break;
+ case"why":v.why=v.why==d.r?"":d.r;render();break;
+ case"adj":ensure(()=>adjust(+d.n));break;
+ case"create":v={n:"create",id:v.id,idea:"",step:1};render();break;
+ case"add":{const t=$("#idea");v.idea=(t.value.trim()?t.value.trim()+", ":"")+d.t;render();break}
+ case"preview":v.idea=$("#idea").value;if(v.idea.trim().length<3)return toast("Écris d’abord une idée.");if(BAD.test(v.idea))return toast("Cette idée n’est pas adaptée. Essaie autre chose !");v.step=2;render();break;
+ case"edit":v.step=1;render();break;
+ case"launch":ensure(run);break;
+ case"gal":v={n:"gal"};render();break;
+ case"img":v={n:"img",id:+d.id};render();break;
+ case"share":ensure(share);break;
+ case"set":ensure(()=>{v={n:"set"};render()});break;
+ case"setsave":setsave();break;
+ case"addkid":S.kids.push({id:Date.now(),name:"Nouveau",e:"🐻",pts:0});save();render();break;
+ case"delkid":if(confirm("Supprimer ce profil, ses points et ses images ?")){S.kids=S.kids.filter(k=>k.id!=d.id);S.gal=S.gal.filter(g=>g.kid!=d.id);S.hist=S.hist.filter(h=>h.kid!=d.id);save();render()}break;
+ case"export":{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:"application/json"}));a.download="bons-points-"+new Date().toISOString().slice(0,10)+".json";a.click();break}
+ case"import":$("#imp").click();break}});
+document.addEventListener("input",e=>{if(e.target.id=="idea")v.idea=e.target.value});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&parent){parent=false;if(v.n=="set")v={n:"home"};render()}});
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+render();
+</script></body></html>
