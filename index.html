@@ -31,15 +31,39 @@ label{display:block;margin:12px 0 4px;font-weight:700}label.in{display:flex;gap:
 .pre{background:#fff;border-radius:18px;padding:14px;border-left:8px solid var(--sun)}
 #t{position:fixed;left:16px;right:16px;bottom:calc(20px + env(safe-area-inset-bottom));background:var(--ink);color:#fff;padding:14px;border-radius:16px;text-align:center;display:none}
 .spin{font-size:64px;text-align:center;animation:r 1.4s linear infinite}@keyframes r{to{transform:rotate(360deg)}}
+#pin{position:fixed;inset:0;background:rgba(42,35,82,.55);display:none;align-items:center;justify-content:center;z-index:9}
+#pin .sh{background:#fff;border-radius:28px;padding:22px;width:290px;text-align:center}
+.dots{display:flex;justify-content:center;gap:14px;margin:14px 0 18px}.dots i{width:18px;height:18px;border-radius:50%;background:#E2DCFA}.dots i.f{background:var(--grape)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.pad button{background:#F1EDFF;color:var(--ink);font-size:26px;padding:0;height:60px}
+.shake{animation:sh .3s}@keyframes sh{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
 @media(prefers-reduced-motion:reduce){.spin{animation:none}.bar i{transition:none}}
-</style></head><body><main id="app"></main><div id="t"></div>
+</style></head><body><main id="app"></main><div id="t"></div><div id="pin"><div class="sh"><b id="pt">Code parent</b><div class="dots"><i></i><i></i><i></i><i></i></div><div class="pad" id="pp"></div></div></div>
 <script>
 const K="bonspoints-v1",$=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const def=()=>({kids:[{id:1,name:"Pablo",e:"🦊",pts:0},{id:2,name:"Eléa",e:"🦋",pts:0}],hist:[],gal:[],pinSet:false,
+const def=()=>({kids:[{id:1,name:"Pablo",e:"🦊",pts:0},{id:2,name:"Eléa",e:"🦋",pts:0}],hist:[],gal:[],pinSet:false,up:0,
  set:{thr:10,pin:"0000",neg:false,rule:"seuil",reasons:["Aide à la maison","Rangement","Geste gentil","Devoirs faits"],ep:"",tok:""}});
 let S;try{S=JSON.parse(localStorage.getItem(K))||def()}catch(e){S=def()}
-const save=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){toast("Stockage plein : faites une sauvegarde puis supprimez des images.")}};
+const loc=()=>{try{localStorage.setItem(K,JSON.stringify(S))}catch(e){toast("Stockage plein : faites une sauvegarde puis supprimez des images.")}};
+const save=()=>{S.up=Date.now();loc();clearTimeout(save.t);save.t=setTimeout(sync,1200)};
+const base=()=>S.set.ep.replace(/\/+$/,""),H=()=>({"Authorization":"Bearer "+S.set.tok});
+function merge(R){const nw=(R.up||0)>(S.up||0),B=nw?R:S;
+ const hm=new Map();[...S.hist,...R.hist].forEach(h=>hm.set(h.id,h));
+ const gm=new Map();[...S.gal,...R.gal].forEach(g=>{const o=gm.get(g.id)||{};gm.set(g.id,{...o,...g,img:g.img||o.img||"",sent:g.sent||o.sent})});
+ const kids=B.kids.map(k=>({...k})),ids=new Set(kids.map(k=>k.id));
+ S={...B,kids,up:Math.max(S.up||0,R.up||0),hist:[...hm.values()].filter(h=>ids.has(h.kid)).sort((a,b)=>b.id-a.id),gal:[...gm.values()].filter(g=>ids.has(g.kid)).sort((a,b)=>b.id-a.id)};
+ S.kids.forEach(k=>k.pts=S.hist.filter(h=>h.kid==k.id).reduce((t,h)=>t+h.n,0))}
+let sy=false;
+async function sync(){if(!S.set.ep||sy||!navigator.onLine)return;sy=true;
+ try{const r=await fetch(base()+"/state",{headers:H()});
+  if(r.ok){const R=await r.json();if(R&&R.kids)merge(R)}else if(r.status!=404)throw 0;
+  for(const g of S.gal.filter(g=>!g.sent&&g.img)){const p=await fetch(base()+"/img/"+g.id,{method:"PUT",headers:H(),body:g.img});if(p.ok)g.sent=true}
+  const o=JSON.parse(JSON.stringify(S));o.gal.forEach(g=>g.img="");
+  const w=await fetch(base()+"/state",{method:"PUT",headers:{...H(),"Content-Type":"application/json"},body:JSON.stringify(o)});if(!w.ok)throw 0;
+  for(const g of S.gal.filter(g=>!g.img)){const i=await fetch(base()+"/img/"+g.id,{headers:H()});if(i.ok)g.img=await i.text()}
+  loc();if(["home","kid","gal"].includes(v.n))render()
+ }catch(e){toast("Synchronisation impossible pour l’instant. Les données restent sur cet iPhone.")}
+ sy=false}
 let v={n:"home"},parent=false;
 const kid=id=>S.kids.find(k=>k.id==id);
 const toast=m=>{const t=$("#t");t.textContent=m;t.style.display="block";clearTimeout(toast.i);toast.i=setTimeout(()=>t.style.display="none",3200)};
@@ -47,7 +71,15 @@ const fd=d=>new Date(d).toLocaleDateString("fr-FR",{day:"numeric",month:"short"}
 const bar=k=>`<div class="bar"><i style="width:${Math.min(100,k.pts/S.set.thr*100)}%"></i></div>`;
 const OPT={Animaux:["un chat","un dragon gentil","un hibou","un dauphin","un lapin","une tortue"],Lieux:["un château sous-marin","une forêt de bonbons","une île dans les nuages","une cabane en haut d’un arbre"],Couleurs:["arc-en-ciel","bleu et or","rose et vert","violet étoilé"],Ambiance:["joyeuse","magique","drôle","tranquille"]};
 const BAD=/sang|arme|tuer|mort|sexe|nu\b|gore|fusil|couteau|cadavre|horreur/i;
-function ensure(cb){if(parent)return cb();const p=prompt("Code parent");if(p===S.set.pin){parent=true;cb()}else if(p!==null)toast("Code incorrect.")}
+let pcb=null,pv="";
+const pd=()=>document.querySelectorAll("#pin .dots i").forEach((x,i)=>x.className=i<pv.length?"f":"");
+function ensure(cb){if(parent)return cb();pcb=cb;pv="";pd();$("#pin").style.display="flex"}
+$("#pp").innerHTML=["1","2","3","4","5","6","7","8","9","✕","0","⌫"].map(k=>`<button data-k="${k}">${k}</button>`).join("");
+$("#pp").onclick=e=>{const k=e.target.dataset.k;if(!k)return;
+ if(k=="✕"){$("#pin").style.display="none";pcb=null;return}
+ if(k=="⌫")pv=pv.slice(0,-1);else if(pv.length<4)pv+=k;pd();
+ if(pv.length==4){if(pv===S.set.pin){$("#pin").style.display="none";parent=true;const f=pcb;pcb=null;f&&f()}
+  else{const h=$("#pin .sh");h.classList.add("shake");setTimeout(()=>{h.classList.remove("shake");pv="";pd()},300)}}};
 function adjust(n){const k=kid(v.id);
  if(n<0&&!S.set.neg&&k.pts+n<0)return toast("Solde insuffisant : le solde ne peut pas être négatif.");
  if((Math.abs(n)>=5||n<=-3)&&!confirm((n>0?"Ajouter ":"Retirer ")+Math.abs(n)+" points à "+k.name+" ?"))return;
@@ -82,9 +114,9 @@ function render(){let h="";
   <label>À l’échange</label><select id="s-rule"><option value="seuil" ${s.rule=="seuil"?"selected":""}>Retirer le seuil (le reste est gardé)</option><option value="tout" ${s.rule=="tout"?"selected":""}>Remettre à zéro</option></select>
   <label class="in"><input id="s-neg" type="checkbox" ${s.neg?"checked":""}>Autoriser un solde négatif</label>
   <label>Motifs (séparés par des virgules)</label><input id="s-rs" value="${esc(s.reasons.join(", "))}">
-  <label>Code parent</label><input id="s-pin" inputmode="numeric" value="${esc(s.pin)}">
+  <label>Code parent (4 chiffres)</label><input id="s-pin" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]*" value="${esc(s.pin)}">
   <h2>Enfants</h2>`+S.kids.map(k=>`<div class="row" style="margin-bottom:8px"><input class="kn" data-id="${k.id}" value="${esc(k.name)}" style="flex:3"><input class="ke" data-id="${k.id}" value="${esc(k.e)}" style="flex:1"><button class="ghost" data-a="delkid" data-id="${k.id}" style="flex:0">🗑️</button></div>`).join("")+`<button class="ghost" data-a="addkid">+ Ajouter un enfant</button>
-  <h2>Génération d’images</h2><small>Adresse de votre serveur intermédiaire. Vide : images de démonstration.</small>
+  <h2>Génération d’images</h2><small>Adresse de votre serveur intermédiaire. Elle sert aussi à synchroniser les appareils de la famille. Vide : images de démonstration et données sur cet iPhone seulement.</small>
   <label>Adresse du serveur</label><input id="s-ep" value="${esc(s.ep)}" placeholder="https://…workers.dev"><label>Jeton familial</label><input id="s-tok" value="${esc(s.tok)}">
   <h2>Sauvegarde</h2><div class="row"><button class="ghost" data-a="export">Exporter</button><button class="ghost" data-a="import">Importer</button></div><input id="imp" type="file" accept=".json" hidden>
   <button class="big" style="margin-top:20px" data-a="setsave">Enregistrer</button>`}
@@ -92,7 +124,7 @@ function render(){let h="";
  const im=$("#imp");if(im)im.onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const j=JSON.parse(t);if(!j.kids||!j.set)throw 0;if(confirm("Remplacer toutes les données ?")){S=j;save();v={n:"home"};render()}}catch(x){toast("Fichier non valide.")}})};
 }
 function buildPrompt(){return `Illustration pour enfants, style livre jeunesse, douce et colorée : ${v.idea.trim()}. Créature chimérique mêlant des éléments inattendus. Sans texte, sans contenu effrayant ni violent.`}
-function shrink(src){return new Promise(r=>{const i=new Image();i.onload=()=>{const m=640/Math.max(i.width,i.height,640),c=document.createElement("canvas");c.width=i.width*m;c.height=i.height*m;c.getContext("2d").drawImage(i,0,0,c.width,c.height);r(c.toDataURL("image/jpeg",.82))};i.onerror=()=>r(src);i.src=src})}
+function shrink(src){return new Promise(r=>{const i=new Image();i.onload=()=>{const m=512/Math.max(i.width,i.height,512),c=document.createElement("canvas");c.width=i.width*m;c.height=i.height*m;c.getContext("2d").drawImage(i,0,0,c.width,c.height);r(c.toDataURL("image/jpeg",.75))};i.onerror=()=>r(src);i.src=src})}
 const demo=()=>{const A=["🦊","🐱","🦉","🐬","🐰","🦋","🐉","🐢","🦄","🐙"],a=A[Math.random()*10|0],b=A[Math.random()*10|0];
  return "data:image/svg+xml,"+encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400"><defs><linearGradient id="g"><stop offset="0" stop-color="#FFC94D"/><stop offset="1" stop-color="#FF7AA8"/></linearGradient><clipPath id="l"><rect width="200" height="400"/></clipPath><clipPath id="r"><rect x="200" width="200" height="400"/></clipPath></defs><rect width="400" height="400" fill="url(#g)"/><text x="200" y="270" font-size="260" text-anchor="middle" clip-path="url(#l)">${a}</text><text x="200" y="270" font-size="260" text-anchor="middle" clip-path="url(#r)">${b}</text><text x="200" y="380" font-size="20" text-anchor="middle" fill="#2A2352">image de démonstration</text></svg>`)}
 async function run(){const k=kid(v.id),p=buildPrompt();v.busy=true;render();
@@ -101,8 +133,8 @@ async function run(){const k=kid(v.id),p=buildPrompt();v.busy=true;render();
    if(!r.ok)throw 0;let j=(await r.json()).image;if(!j)throw 0;
    if(/^https?:/.test(j)){const b=await (await fetch(j)).blob();j=await new Promise(o=>{const f=new FileReader();f.onload=()=>o(f.result);f.readAsDataURL(b)})}
    img=await shrink(j)}
-  k.pts-=S.set.rule=="tout"?k.pts:S.set.thr;
-  S.hist.unshift({id:Date.now(),kid:k.id,d:new Date().toISOString(),n:-(S.set.thr),why:"Récompense : image"});
+  const dd=S.set.rule=="tout"?k.pts:S.set.thr;k.pts-=dd;
+  S.hist.unshift({id:Date.now(),kid:k.id,d:new Date().toISOString(),n:-dd,why:"Récompense : image"});
   S.gal.unshift({id:Date.now()+1,kid:k.id,name:k.name,d:new Date().toISOString(),prompt:v.idea.trim(),img});save();v.res=img;
  }catch(e){toast("La création a échoué. Aucun point n’a été retiré, vous pouvez réessayer.");v.step=2}
  v.busy=false;render()}
@@ -110,7 +142,7 @@ async function share(){const g=S.gal.find(x=>x.id==v.id);try{const b=await (awai
  if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f]});else{const a=document.createElement("a");a.href=g.img;a.download=f.name;a.click()}}catch(e){}}
 function setsave(){const s=S.set,n=+$("#s-thr").value;if(!(n>=1))return toast("Le seuil doit être au moins 1.");
  s.thr=n;s.rule=$("#s-rule").value;s.neg=$("#s-neg").checked;s.reasons=$("#s-rs").value.split(",").map(x=>x.trim()).filter(Boolean);
- const p=$("#s-pin").value.trim();if(!/^\d{4,8}$/.test(p))return toast("Le code doit avoir 4 à 8 chiffres.");if(p!="0000")S.pinSet=true;s.pin=p;
+ const p=$("#s-pin").value.trim();if(!/^\d{4}$/.test(p))return toast("Le code doit avoir exactement 4 chiffres.");if(p!="0000")S.pinSet=true;s.pin=p;
  s.ep=$("#s-ep").value.trim();s.tok=$("#s-tok").value.trim();
  document.querySelectorAll(".kn").forEach(i=>kid(i.dataset.id).name=i.value.trim()||"Enfant");document.querySelectorAll(".ke").forEach(i=>kid(i.dataset.id).e=i.value.trim()||"🙂");
  save();v={n:"home"};render();toast("Réglages enregistrés.")}
@@ -136,7 +168,7 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-a]");if(!b
  case"export":{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S)],{type:"application/json"}));a.download="bons-points-"+new Date().toISOString().slice(0,10)+".json";a.click();break}
  case"import":$("#imp").click();break}});
 document.addEventListener("input",e=>{if(e.target.id=="idea")v.idea=e.target.value});
-document.addEventListener("visibilitychange",()=>{if(document.hidden&&parent){parent=false;if(v.n=="set")v={n:"home"};render()}});
+document.addEventListener("visibilitychange",()=>{if(document.hidden){if(parent){parent=false;if(v.n=="set")v={n:"home"};render()}}else sync()});
 if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
-render();
+render();sync();addEventListener("online",sync);if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
 </script></body></html>
